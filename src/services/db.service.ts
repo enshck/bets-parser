@@ -5,6 +5,7 @@ import { dbTables } from 'const/dbTables';
 import BetFairSport from 'models/BetfairSport';
 import BetfairToken from 'models/BetfairToken';
 import BetFairEvent from 'models/BetfairEvent';
+import BetfairMarket from 'models/BetfairMarket';
 
 export const databaseServices = [
   {
@@ -16,7 +17,12 @@ export const databaseServices = [
         username: variables.dbUser,
         password: variables.dbPassword,
       });
-      sequelize.addModels([BetFairSport, BetfairToken, BetFairEvent]);
+      sequelize.addModels([
+        BetFairSport,
+        BetfairToken,
+        BetFairEvent,
+        BetfairMarket,
+      ]);
       await sequelize.sync();
       return sequelize;
     },
@@ -39,6 +45,13 @@ export const databaseServices = [
     provide: dbTables.BETFAIR_EVENT_TABLE,
     useFactory: async () => {
       return BetFairEvent;
+    },
+    inject: ['SEQUELIZE'],
+  },
+  {
+    provide: dbTables.BETFAIR_MARKET_TABLE,
+    useFactory: async () => {
+      return BetfairMarket;
     },
     inject: ['SEQUELIZE'],
   },

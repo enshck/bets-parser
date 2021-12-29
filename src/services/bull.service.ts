@@ -6,15 +6,18 @@ import { dbTables } from 'const/dbTables';
 import BetfairToken from 'models/BetfairToken';
 import Sport from 'models/BetfairSport';
 import BetfairEvent from 'models/BetfairEvent';
+import BetfairMarket from 'models/BetfairMarket';
 import { queueTypes } from 'const/queueBull';
 import {
   login,
   getSports,
   getEvents as getEventsByType,
+  getMarkets as getMarketsByType,
 } from 'axiosRequests/betFair';
 import async from 'async';
 import { ISport } from 'interfaces/betfair/sports';
 import { IEventData } from 'interfaces/betfair/events';
+import { IMarket } from 'interfaces/betfair/markets';
 
 @Injectable()
 export class BullService {
@@ -29,6 +32,8 @@ export class BullService {
     private sportTable: typeof Sport,
     @Inject(dbTables.BETFAIR_EVENT_TABLE)
     private eventTable: typeof BetfairEvent,
+    @Inject(dbTables.BETFAIR_MARKET_TABLE)
+    private marketTable: typeof BetfairMarket,
   ) {}
 
   async onApplicationBootstrap() {
@@ -141,11 +146,52 @@ export class BullService {
       });
 
       await this.eventTable.bulkCreate(dataForBD, {
-        updateOnDuplicate: ['name'],
+        updateOnDuplicate: ['name', 'sportId'],
       });
     };
 
-    async.parallel([getSportsData, getEvents]);
+    const getMarkets = async () => {
+      const sports = await this.sportTable.findAll();
+      const events = (await this.eventTable.findAll()).map((elem) =>
+        elem.get(),
+      );
+      const eventTypeIds = sports.map((elem) => elem.getDataValue('eventId'));
+      const externalEventIdToInternal = {};
+
+      events.forEach((elem) => {
+        const extenalEventId = elem?.eventId;
+        const internalEventId = elem?.id;
+
+        externalEventIdToInternal[extenalEventId] = internalEventId;
+      });
+
+      const promises = eventTypeIds.map((idOfType) =>
+        getMarketsByType(token, idOfType),
+      );
+
+      const results: IMarket[][] = (await Promise.all(promises)).map(
+        (elem) => elem.data,
+      );
+
+      const dataForBD = results
+        .reduce((accum, elem) => [...accum, ...elem])
+        .map((elem) => {
+          const { event, marketId, marketName } = elem;
+          const internalEventId = externalEventIdToInternal[event.id];
+
+          return {
+            marketId,
+            name: marketName,
+            eventId: internalEventId,
+          };
+        });
+
+      await this.marketTable.bulkCreate(dataForBD, {
+        updateOnDuplicate: ['name', 'eventId'],
+      });
+    };
+
+    async.parallel([getSportsData, getEvents, getMarkets]);
   }
 }
 

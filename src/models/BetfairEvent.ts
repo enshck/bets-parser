@@ -7,11 +7,12 @@ import {
   Default,
   ForeignKey,
   BelongsTo,
+  HasMany,
 } from 'sequelize-typescript';
 import { UUIDV4 } from 'sequelize';
 
 import BetfairSport from './BetfairSport';
-
+import BetfairMarket from './BetfairMarket';
 @Table
 export default class BetfairEvent extends Model {
   @IsUUID(4)
@@ -34,4 +35,7 @@ export default class BetfairEvent extends Model {
 
   @BelongsTo(() => BetfairSport)
   sport: BetfairSport;
+
+  @HasMany(() => BetfairMarket)
+  markets: BetfairMarket[];
 }

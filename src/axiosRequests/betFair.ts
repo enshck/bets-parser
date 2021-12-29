@@ -4,6 +4,7 @@ import {
   loginBetfairMethod,
   getSportsMethod,
   getEventsMethod,
+  getMarketsMethod,
 } from 'const/betfairMethods';
 
 export const login = async () => {
@@ -38,6 +39,23 @@ export const getEvents = async (token: string, eventType: string) =>
       filter: {
         eventTypeIds: [eventType],
       },
+    },
+    {
+      headers: {
+        'X-Authentication': token,
+      },
+    },
+  );
+
+export const getMarkets = async (token: string, eventType: string) =>
+  await axios.post(
+    getMarketsMethod,
+    {
+      filter: {
+        eventTypeIds: [eventType],
+      },
+      maxResults: 1000,
+      marketProjection: ['EVENT'],
     },
     {
       headers: {
