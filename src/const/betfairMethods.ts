@@ -7,3 +7,5 @@ export const getSportsMethod = `${baseUrlForBetfair}listEventTypes/`;
 export const getEventsMethod = `${baseUrlForBetfair}listEvents/`;
 
 export const getMarketsMethod = `${baseUrlForBetfair}listMarketCatalogue/`;
+
+export const getRunnersMethod = `${baseUrlForBetfair}listMarketBook/`;

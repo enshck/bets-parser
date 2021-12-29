@@ -5,6 +5,7 @@ import {
   getSportsMethod,
   getEventsMethod,
   getMarketsMethod,
+  getRunnersMethod,
 } from 'const/betfairMethods';
 
 export const login = async () => {
@@ -56,6 +57,29 @@ export const getMarkets = async (token: string, eventType: string) =>
       },
       maxResults: 1000,
       marketProjection: ['EVENT'],
+    },
+    {
+      headers: {
+        'X-Authentication': token,
+      },
+    },
+  );
+
+export const getRunnersByMarkets = async (token: string, marketsId: number[]) =>
+  await axios.post(
+    getRunnersMethod,
+    {
+      marketIds: marketsId,
+      priceProjection: {
+        priceData: ['EX_BEST_OFFERS'],
+        exBestOffersOverrides: {
+          bestPricesDepth: 2,
+          rollupModel: 'STAKE',
+          rollupLimit: 20,
+        },
+      },
+      orderProjection: 'ALL',
+      matchProjection: 'ROLLED_UP_BY_PRICE',
     },
     {
       headers: {

@@ -7,17 +7,20 @@ import BetfairToken from 'models/BetfairToken';
 import Sport from 'models/BetfairSport';
 import BetfairEvent from 'models/BetfairEvent';
 import BetfairMarket from 'models/BetfairMarket';
+import BetfairRunner from 'models/BetfairRunner';
 import { queueTypes } from 'const/queueBull';
 import {
   login,
   getSports,
   getEvents as getEventsByType,
   getMarkets as getMarketsByType,
+  getRunnersByMarkets,
 } from 'axiosRequests/betFair';
 import async from 'async';
 import { ISport } from 'interfaces/betfair/sports';
 import { IEventData } from 'interfaces/betfair/events';
 import { IMarket } from 'interfaces/betfair/markets';
+import { IMarketWithRunners } from 'interfaces/betfair/runners';
 
 @Injectable()
 export class BullService {
@@ -34,6 +37,8 @@ export class BullService {
     private eventTable: typeof BetfairEvent,
     @Inject(dbTables.BETFAIR_MARKET_TABLE)
     private marketTable: typeof BetfairMarket,
+    @Inject(dbTables.BETFAIR_RUNNER_TABLE)
+    private runnerTable: typeof BetfairRunner,
   ) {}
 
   async onApplicationBootstrap() {
@@ -54,8 +59,8 @@ export class BullService {
         {},
         {
           repeat: {
-            // every 5 seconds
-            every: 5000,
+            // every 10 seconds
+            every: 10000,
           },
         },
       );
@@ -174,7 +179,7 @@ export class BullService {
       );
 
       const dataForBD = results
-        .reduce((accum, elem) => [...accum, ...elem])
+        .reduce((accum, elem) => [...accum, ...elem], [])
         .map((elem) => {
           const { event, marketId, marketName } = elem;
           const internalEventId = externalEventIdToInternal[event.id];
@@ -191,7 +196,77 @@ export class BullService {
       });
     };
 
-    async.parallel([getSportsData, getEvents, getMarkets]);
+    const getCoeffs = async () => {
+      let slicedMarketIds: number[][] = [];
+      const marketsData = (await this.marketTable.findAll()).map((elem) =>
+        elem.get(),
+      );
+
+      const marketIds = marketsData.map((elem) => elem.marketId);
+
+      const sliceMarketIds = () => {
+        slicedMarketIds = [...slicedMarketIds, marketIds.splice(0, 100)];
+
+        if (marketIds.length > 0) {
+          sliceMarketIds();
+        }
+      };
+
+      sliceMarketIds();
+
+      const promises = slicedMarketIds.map((ids) =>
+        getRunnersByMarkets(token, ids),
+      );
+
+      const externalMarketIdToInternal = {};
+
+      marketsData.forEach((elem) => {
+        const extenalMarketId = elem?.marketId;
+        const internalMarketId = elem?.id;
+
+        externalMarketIdToInternal[extenalMarketId] = internalMarketId;
+      });
+
+      const results: IMarketWithRunners[] = (await Promise.all(promises))
+        .map((elem) => elem.data)
+        .reduce((acc, elem) => [...acc, ...elem], []);
+
+      const runnersData = [];
+
+      results.forEach((elem) => {
+        const { marketId: externalMarketId, runners } = elem;
+        const marketId = externalMarketIdToInternal[externalMarketId];
+
+        runners.forEach((elem, key) => {
+          const [availableToBack] = elem?.ex?.availableToBack;
+          const [availableToLay] = elem?.ex?.availableToLay;
+
+          if (availableToBack) {
+            runnersData.push({
+              ...availableToBack,
+              isAvailableToBack: true,
+              order: key,
+              marketId,
+            });
+          }
+
+          if (availableToLay) {
+            runnersData.push({
+              ...availableToLay,
+              isAvailableToBack: false,
+              order: key,
+              marketId,
+            });
+          }
+        });
+      });
+
+      await this.runnerTable.bulkCreate(runnersData, {
+        updateOnDuplicate: ['price', 'size', 'isAvailableToBack', 'order'],
+      });
+    };
+
+    async.parallel([getSportsData, getEvents, getMarkets, getCoeffs]);
   }
 }
 
