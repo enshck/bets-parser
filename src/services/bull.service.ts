@@ -53,6 +53,7 @@ export class BullService {
             every: 2 * 60 * 60 * 1000,
           },
           removeOnComplete: true,
+          removeOnFail: true,
         },
       );
 
@@ -62,9 +63,10 @@ export class BullService {
         {
           repeat: {
             // every 10 seconds
-            every: 10000,
+            every: 20000,
           },
           removeOnComplete: true,
+          removeOnFail: true,
         },
       );
     };
@@ -279,6 +281,8 @@ export class BullService {
         force: true,
       });
     };
+
+    // getting data from bestfair ~ 100 parallel requests every 20 seconds -- hard process
     async.parallel([getSportsData, getEvents, getMarkets, getCoeffs]);
   }
 }
