@@ -13,7 +13,9 @@ import { UUIDV4 } from 'sequelize';
 
 import BetfairMarket from './BetfairMarket';
 
-@Table
+@Table({
+  paranoid: true,
+})
 export default class BetfairRunner extends Model {
   @IsUUID(4)
   @PrimaryKey

@@ -1,6 +1,7 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { Queue } from 'bull';
 import { InjectQueue, Processor, Process } from '@nestjs/bull';
+import { Op } from 'sequelize';
 
 import { dbTables } from 'const/dbTables';
 import BetfairToken from 'models/BetfairToken';
@@ -51,6 +52,7 @@ export class BullService {
             // every 2 hours HH * MM * SS * miliseconds
             every: 2 * 60 * 60 * 1000,
           },
+          removeOnComplete: true,
         },
       );
 
@@ -62,6 +64,7 @@ export class BullService {
             // every 10 seconds
             every: 10000,
           },
+          removeOnComplete: true,
         },
       );
     };
@@ -261,11 +264,21 @@ export class BullService {
         });
       });
 
-      await this.runnerTable.bulkCreate(runnersData, {
-        updateOnDuplicate: ['price', 'size', 'isAvailableToBack', 'order'],
+      await this.runnerTable.destroy({
+        where: {},
+        truncate: true,
+      });
+      await this.runnerTable.bulkCreate(runnersData);
+
+      await this.runnerTable.destroy({
+        where: {
+          deletedAt: {
+            [Op.ne]: null,
+          },
+        },
+        force: true,
       });
     };
-
     async.parallel([getSportsData, getEvents, getMarkets, getCoeffs]);
   }
 }
