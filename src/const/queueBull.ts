@@ -1,4 +1,3 @@
 export const queueTypes = {
-  UPDATE_BETFAIR_TOKEN: 'UPDATE_BETFAIR_TOKEN',
   UPDATE_BETS_DATA: 'UPDATE_BETS_DATA',
 };

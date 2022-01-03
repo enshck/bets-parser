@@ -4,7 +4,6 @@ import { InjectQueue, Processor, Process } from '@nestjs/bull';
 import { Op } from 'sequelize';
 
 import { dbTables } from 'const/dbTables';
-import BetfairToken from 'models/BetfairToken';
 import Sport from 'models/BetfairSport';
 import BetfairEvent from 'models/BetfairEvent';
 import BetfairMarket from 'models/BetfairMarket';
@@ -26,12 +25,8 @@ import { IMarketWithRunners } from 'interfaces/betfair/runners';
 @Injectable()
 export class BullService {
   constructor(
-    @InjectQueue(queueTypes.UPDATE_BETFAIR_TOKEN)
-    private updateBetfairTokenQueue: Queue,
     @InjectQueue(queueTypes.UPDATE_BETS_DATA)
     private updateBetsDataQueue: Queue,
-    @Inject(dbTables.BETFAIR_TOKEN_TABLE)
-    private betFairTokenTable: typeof BetfairToken,
     @Inject(dbTables.SPORT_TABLE)
     private sportTable: typeof Sport,
     @Inject(dbTables.BETFAIR_EVENT_TABLE)
@@ -44,25 +39,12 @@ export class BullService {
 
   async onApplicationBootstrap() {
     const initRepeatableJob = async () => {
-      await this.updateBetfairTokenQueue.empty();
-      await this.updateBetfairTokenQueue.add(
-        {},
-        {
-          repeat: {
-            // every 2 hours HH * MM * SS * miliseconds
-            every: 2 * 60 * 60 * 1000,
-          },
-          removeOnComplete: true,
-          removeOnFail: true,
-        },
-      );
-
       await this.updateBetsDataQueue.empty();
       await this.updateBetsDataQueue.add(
         {},
         {
           repeat: {
-            // every 10 seconds
+            // every 20 seconds
             every: 20000,
           },
           removeOnComplete: true,
@@ -71,30 +53,15 @@ export class BullService {
       );
     };
 
-    await this.updateBetfairToken();
     await this.updateData();
     await initRepeatableJob();
   }
 
-  async updateBetfairToken() {
-    await this.betFairTokenTable.destroy({
-      where: {},
-      truncate: true,
-    });
-
+  async updateData() {
     const result = await login();
 
     const token = result?.data?.token;
     console.log('Betfair token recieved !!!');
-
-    await this.betFairTokenTable.create({
-      token,
-    });
-  }
-
-  async updateData() {
-    const result = await this.betFairTokenTable.findOne();
-    const token = result.getDataValue('token');
 
     if (!token) {
       return;
@@ -284,18 +251,6 @@ export class BullService {
 
     // getting data from bestfair ~ 100 parallel requests every 20 seconds -- hard process
     async.parallel([getSportsData, getEvents, getMarkets, getCoeffs]);
-  }
-}
-
-@Processor(queueTypes.UPDATE_BETFAIR_TOKEN)
-export class UpdateTokenConsumer {
-  constructor(
-    @Inject(BullService)
-    private bullService: BullService,
-  ) {}
-  @Process()
-  async updateToken() {
-    await this.bullService.updateBetfairToken();
   }
 }
 

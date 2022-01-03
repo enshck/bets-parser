@@ -3,7 +3,6 @@ import { Sequelize } from 'sequelize-typescript';
 import variables from 'config/variables';
 import { dbTables } from 'const/dbTables';
 import BetFairSport from 'models/BetfairSport';
-import BetfairToken from 'models/BetfairToken';
 import BetFairEvent from 'models/BetfairEvent';
 import BetfairMarket from 'models/BetfairMarket';
 import BetfairRunner from 'models/BetfairRunner';
@@ -20,7 +19,6 @@ export const databaseServices = [
       });
       sequelize.addModels([
         BetFairSport,
-        BetfairToken,
         BetFairEvent,
         BetfairMarket,
         BetfairRunner,
@@ -33,13 +31,6 @@ export const databaseServices = [
     provide: dbTables.SPORT_TABLE,
     useFactory: async () => {
       return BetFairSport;
-    },
-    inject: ['SEQUELIZE'],
-  },
-  {
-    provide: dbTables.BETFAIR_TOKEN_TABLE,
-    useFactory: async () => {
-      return BetfairToken;
     },
     inject: ['SEQUELIZE'],
   },
