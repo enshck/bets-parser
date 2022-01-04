@@ -17,6 +17,11 @@ class BetfairController {
   async getData(@Query() queryData) {
     return this.betfairService.getBetfairData(queryData);
   }
+
+  @Get(betfairPaths.SEARCH_EVENTS_BY_NAME)
+  async getEvents(@Query() queryData) {
+    return this.betfairService.getEvents(queryData);
+  }
 }
 
 export default BetfairController;

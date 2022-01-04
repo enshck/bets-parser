@@ -266,7 +266,7 @@ export class BullService {
       }
     };
 
-    // getting data from bestfair ~ 100 parallel requests every 20 seconds -- hard process
+    // getting data from bestfair ~ 100 parallel requests every 10 seconds -- hard process
     async.parallel([getSportsData, getEvents, getMarkets, getCoeffs]);
   }
 }

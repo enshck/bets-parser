@@ -4,4 +4,5 @@ export const controllerPaths = {
 
 export const betfairPaths = {
   GET_DATA: 'getData',
+  SEARCH_EVENTS_BY_NAME: 'searchEventsByName',
 };
