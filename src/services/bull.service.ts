@@ -39,14 +39,14 @@ export class BullService {
 
   async onApplicationBootstrap() {
     const initRepeatableJob = async () => {
-      await this.updateBetsDataQueue.empty();
       await this.updateBetsDataQueue.add(
         {},
         {
           repeat: {
-            // every 20 seconds
-            every: 20000,
+            // every 10 seconds
+            every: 10000,
           },
+          jobId: 'refetchBetfairData',
           removeOnComplete: true,
           removeOnFail: true,
         },
@@ -68,185 +68,202 @@ export class BullService {
     }
 
     const getSportsData = async () => {
-      const sports = await getSports(token);
-      const data: ISport[] = sports?.data ?? [];
+      try {
+        const sports = await getSports(token);
 
-      if (!data) {
-        return;
-      }
+        const data: ISport[] = sports?.data ?? [];
 
-      const dataForDB = data.map((elem) => {
-        const { id, name } = elem.eventType;
+        if (!data) {
+          return;
+        }
 
-        return {
-          eventId: id,
-          name,
-        };
-      });
-
-      await this.sportTable.bulkCreate(dataForDB, {
-        updateOnDuplicate: ['eventId', 'name'],
-      });
-    };
-
-    const getEvents = async () => {
-      const sports = await this.sportTable.findAll();
-      const eventTypeIds = sports.map((elem) => elem.getDataValue('eventId'));
-
-      const sportsData = (await this.sportTable.findAll()).map((elem) =>
-        elem.get(),
-      );
-
-      const promises = eventTypeIds.map((idOfType) =>
-        getEventsByType(token, idOfType),
-      );
-
-      const results: IEventData[][] = (await Promise.all(promises)).map(
-        (elem) => elem.data,
-      );
-
-      let dataForBD = [];
-
-      results.forEach((events, key) => {
-        const externalEventTypeId = eventTypeIds[key];
-        const internalSportElement = sportsData.find(
-          (elem) => elem.eventId === externalEventTypeId,
-        );
-
-        const eventsData = events.map((elem) => ({
-          eventId: elem.event.id,
-          name: elem.event.name,
-          sportId: internalSportElement?.id,
-        }));
-
-        dataForBD = [...dataForBD, ...eventsData];
-      });
-
-      await this.eventTable.bulkCreate(dataForBD, {
-        updateOnDuplicate: ['name', 'sportId'],
-      });
-    };
-
-    const getMarkets = async () => {
-      const sports = await this.sportTable.findAll();
-      const events = (await this.eventTable.findAll()).map((elem) =>
-        elem.get(),
-      );
-      const eventTypeIds = sports.map((elem) => elem.getDataValue('eventId'));
-      const externalEventIdToInternal = {};
-
-      events.forEach((elem) => {
-        const extenalEventId = elem?.eventId;
-        const internalEventId = elem?.id;
-
-        externalEventIdToInternal[extenalEventId] = internalEventId;
-      });
-
-      const promises = eventTypeIds.map((idOfType) =>
-        getMarketsByType(token, idOfType),
-      );
-
-      const results: IMarket[][] = (await Promise.all(promises)).map(
-        (elem) => elem.data,
-      );
-
-      const dataForBD = results
-        .reduce((accum, elem) => [...accum, ...elem], [])
-        .map((elem) => {
-          const { event, marketId, marketName } = elem;
-          const internalEventId = externalEventIdToInternal[event.id];
+        const dataForDB = data.map((elem) => {
+          const { id, name } = elem.eventType;
 
           return {
-            marketId,
-            name: marketName,
-            eventId: internalEventId,
+            eventId: id,
+            name,
           };
         });
 
-      await this.marketTable.bulkCreate(dataForBD, {
-        updateOnDuplicate: ['name', 'eventId'],
-      });
+        await this.sportTable.bulkCreate(dataForDB, {
+          updateOnDuplicate: ['eventId', 'name'],
+        });
+      } catch (err) {
+        console.log(err?.message, 'sportsError');
+      }
+    };
+
+    const getEvents = async () => {
+      try {
+        const sports = await this.sportTable.findAll();
+        const eventTypeIds = sports.map((elem) => elem.getDataValue('eventId'));
+
+        const sportsData = (await this.sportTable.findAll()).map((elem) =>
+          elem.get(),
+        );
+
+        const promises = eventTypeIds.map((idOfType) =>
+          getEventsByType(token, idOfType),
+        );
+
+        const results: IEventData[][] = (await Promise.all(promises)).map(
+          (elem) => elem.data,
+        );
+
+        let dataForBD = [];
+
+        results.forEach((events, key) => {
+          const externalEventTypeId = eventTypeIds[key];
+          const internalSportElement = sportsData.find(
+            (elem) => elem.eventId === externalEventTypeId,
+          );
+
+          const eventsData = events.map((elem) => ({
+            eventId: elem.event.id,
+            name: elem.event.name,
+            sportId: internalSportElement?.id,
+          }));
+
+          dataForBD = [...dataForBD, ...eventsData];
+        });
+
+        await this.eventTable.bulkCreate(dataForBD, {
+          updateOnDuplicate: ['name', 'sportId'],
+        });
+      } catch (err) {
+        console.log(err?.message, 'eventsError');
+      }
+    };
+
+    const getMarkets = async () => {
+      try {
+        const sports = await this.sportTable.findAll();
+        const events = (await this.eventTable.findAll()).map((elem) =>
+          elem.get(),
+        );
+        const eventTypeIds = sports.map((elem) => elem.getDataValue('eventId'));
+        const externalEventIdToInternal = {};
+
+        events.forEach((elem) => {
+          const extenalEventId = elem?.eventId;
+          const internalEventId = elem?.id;
+
+          externalEventIdToInternal[extenalEventId] = internalEventId;
+        });
+
+        const promises = eventTypeIds.map((idOfType) =>
+          getMarketsByType(token, idOfType),
+        );
+
+        const results: IMarket[][] = (await Promise.all(promises)).map(
+          (elem) => elem.data,
+        );
+
+        const dataForBD = results
+          .reduce((accum, elem) => [...accum, ...elem], [])
+          .map((elem) => {
+            const { event, marketId, marketName } = elem;
+            const internalEventId = externalEventIdToInternal[event.id];
+
+            return {
+              marketId,
+              name: marketName,
+              eventId: internalEventId,
+            };
+          });
+
+        await this.marketTable.bulkCreate(dataForBD, {
+          updateOnDuplicate: ['name', 'eventId'],
+        });
+      } catch (err) {
+        console.log(err?.message, 'maketsError');
+      }
     };
 
     const getCoeffs = async () => {
-      let slicedMarketIds: number[][] = [];
-      const marketsData = (await this.marketTable.findAll()).map((elem) =>
-        elem.get(),
-      );
+      try {
+        let slicedMarketIds: number[][] = [];
+        const marketsData = (await this.marketTable.findAll()).map((elem) =>
+          elem.get(),
+        );
 
-      const marketIds = marketsData.map((elem) => elem.marketId);
+        const marketIds = marketsData.map((elem) => elem.marketId);
 
-      const sliceMarketIds = () => {
-        slicedMarketIds = [...slicedMarketIds, marketIds.splice(0, 100)];
+        const sliceMarketIds = () => {
+          slicedMarketIds = [...slicedMarketIds, marketIds.splice(0, 100)];
 
-        if (marketIds.length > 0) {
-          sliceMarketIds();
-        }
-      };
-
-      sliceMarketIds();
-
-      const promises = slicedMarketIds.map((ids) =>
-        getRunnersByMarkets(token, ids),
-      );
-
-      const externalMarketIdToInternal = {};
-
-      marketsData.forEach((elem) => {
-        const extenalMarketId = elem?.marketId;
-        const internalMarketId = elem?.id;
-
-        externalMarketIdToInternal[extenalMarketId] = internalMarketId;
-      });
-
-      const results: IMarketWithRunners[] = (await Promise.all(promises))
-        .map((elem) => elem.data)
-        .reduce((acc, elem) => [...acc, ...elem], []);
-
-      const runnersData = [];
-
-      results.forEach((elem) => {
-        const { marketId: externalMarketId, runners } = elem;
-        const marketId = externalMarketIdToInternal[externalMarketId];
-
-        runners.forEach((elem, key) => {
-          const [availableToBack] = elem?.ex?.availableToBack;
-          const [availableToLay] = elem?.ex?.availableToLay;
-
-          if (availableToBack) {
-            runnersData.push({
-              ...availableToBack,
-              isAvailableToBack: true,
-              order: key,
-              marketId,
-            });
+          if (marketIds.length > 0) {
+            sliceMarketIds();
           }
+        };
 
-          if (availableToLay) {
-            runnersData.push({
-              ...availableToLay,
-              isAvailableToBack: false,
-              order: key,
-              marketId,
-            });
-          }
+        sliceMarketIds();
+
+        const promises = slicedMarketIds.map((ids) =>
+          getRunnersByMarkets(token, ids),
+        );
+
+        const externalMarketIdToInternal = {};
+
+        marketsData.forEach((elem) => {
+          const extenalMarketId = elem?.marketId;
+          const internalMarketId = elem?.id;
+
+          externalMarketIdToInternal[extenalMarketId] = internalMarketId;
         });
-      });
 
-      await this.runnerTable.destroy({
-        where: {},
-        truncate: true,
-      });
-      await this.runnerTable.bulkCreate(runnersData);
+        const results: IMarketWithRunners[] = (await Promise.all(promises))
+          .map((elem) => elem.data)
+          .reduce((acc, elem) => [...acc, ...elem], []);
 
-      await this.runnerTable.destroy({
-        where: {
-          deletedAt: {
-            [Op.ne]: null,
+        const runnersData = [];
+
+        results.forEach((elem) => {
+          const { marketId: externalMarketId, runners } = elem;
+          const marketId = externalMarketIdToInternal[externalMarketId];
+
+          runners.forEach((elem, key) => {
+            const [availableToBack] = elem?.ex?.availableToBack;
+            const [availableToLay] = elem?.ex?.availableToLay;
+
+            if (availableToBack) {
+              runnersData.push({
+                ...availableToBack,
+                isAvailableToBack: true,
+                order: key,
+                marketId,
+              });
+            }
+
+            if (availableToLay) {
+              runnersData.push({
+                ...availableToLay,
+                isAvailableToBack: false,
+                order: key,
+                marketId,
+              });
+            }
+          });
+        });
+
+        await this.runnerTable.destroy({
+          where: {},
+          truncate: true,
+        });
+        await this.runnerTable.bulkCreate(runnersData);
+
+        await this.runnerTable.destroy({
+          where: {
+            deletedAt: {
+              [Op.ne]: null,
+            },
           },
-        },
-        force: true,
-      });
+          force: true,
+        });
+      } catch (err) {
+        console.log(err?.message, 'runnersError');
+      }
     };
 
     // getting data from bestfair ~ 100 parallel requests every 20 seconds -- hard process
